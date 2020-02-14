@@ -48,7 +48,6 @@ public class HistoryLesson extends AppCompatActivity {
      */
     public void finishedModule(View view){
         dbAccess.updateFinishedModule(histAndCultLesson.getModule());
-        Intent intent = new Intent(this, MainMenu.class);
-        startActivity(intent);
+        this.onBackPressed();
     }
 }

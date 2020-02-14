@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#345f94</color>
-    <color name="colorPrimaryDark">#2c517e</color>
+    <color name="colorPrimary">#519434</color>
+    <color name="colorPrimaryDark">#34681E</color>
     <color name="colorAccent">#FFFFFF</color>
-    <color name="background_material_light">#c9ddff</color>
-    <color name="button_pressed">#c9ddff</color>
-    <color name="button_selected">#345f94</color>
+    <color name="background_material_light">#D5FFC9</color>
+    <color name="button_pressed">#D5FFC9</color>
+    <color name="button_selected">#519434</color>
 
 
 

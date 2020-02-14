@@ -4,8 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#c9ddff"
-    android:backgroundTint="#c9ddff"
+    android:background="#D5FFC9"
+    android:backgroundTint="#D5FFC9"
     tools:context=".InfoLesson">
 
     <TextView

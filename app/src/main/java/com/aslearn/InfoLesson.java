@@ -3,22 +3,26 @@ package com.aslearn;
 import android.content.Intent;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.VideoView;
 
 import com.aslearn.db.DatabaseAccess;
 import com.aslearn.db.Word;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 
 /**
- * Created by hannonm2
+ * Created by jakejarvis98
  *
  * This activity shows the user the info pages for all of the signs in a specified lesson.
  */
@@ -31,8 +35,8 @@ public class InfoLesson extends AppCompatActivity{
     ImageView imageView;
    // Intent intent;
     Button nextSignButton;
-    Button moreInfoButton;
-    private int floater;
+    Button prevSignButton;
+    ProgressBar progressBar;
     private Word word;
     private ArrayList<Word> words;
     private int index;
@@ -43,7 +47,7 @@ public class InfoLesson extends AppCompatActivity{
      */
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Intent intent = getIntent();
+        //Intent intent = getIntent();
         index = 0;
         setContentView(R.layout.infopage);
         wordView = findViewById(R.id.wordText);
@@ -51,12 +55,15 @@ public class InfoLesson extends AppCompatActivity{
         infoView = findViewById(R.id.topInfo);
         videoView = (VideoView) findViewById(R.id.signVideo);
         nextSignButton = findViewById(R.id.nextSignButton);
-        moreInfoButton = findViewById(R.id.moreInfoButton);
-        DatabaseAccess dbAccess = DatabaseAccess.getInstance(this);
-        words = dbAccess.selectWordsByLesson(intent.getStringExtra("lessonName"));
-        System.out.println("Number of words: " + words.size());
-        setTitle(intent.getStringExtra("lessonName"));
-        setupSign();
+        prevSignButton = findViewById(R.id.prevSignButton);
+        progressBar = findViewById(R.id.progressBar);
+//        DatabaseAccess dbAccess = DatabaseAccess.getInstance(this);
+//        words = dbAccess.selectWordsByLesson(intent.getStringExtra("lessonName"));
+        ExampleAsyncTask task = new ExampleAsyncTask(this);
+        task.execute(this);
+//        System.out.println("Number of words: " + words.size());
+//        setTitle(intent.getStringExtra("lessonName"));
+//        setupSign();
     }
 
     /**
@@ -65,13 +72,23 @@ public class InfoLesson extends AppCompatActivity{
      */
     private void setupSign() {
         word = words.get(index);
-        if(index == words.size() - 1) nextSignButton.setText("To Quiz");
+        if (index == words.size() - 1) nextSignButton.setText("To Quiz");
+        else nextSignButton.setText("Next Sign");
+        if (index <= 0) {
+            prevSignButton.setEnabled(false);
+            prevSignButton.setAlpha(0.5f);
+        } else {
+            prevSignButton.setEnabled(true);
+            prevSignButton.setAlpha(1f);
+        }
         System.out.println("Word: " + word.getWord());
         if (wordView == null){
             System.out.println("Wordview null");
         }
         wordView.setText(word.getWord());
-        infoView.setText(word.getBasicInfo());
+        infoView.scrollTo(0,0);
+        infoView.setText(word.getBasicInfo() + "\n\n" + word.getMoreInfo());
+        infoView.setMovementMethod(new ScrollingMovementMethod());
         String fileName = word.getVisualFile();
         System.out.println(fileName);
         String[] fileNameSplit = fileName.split("\\.");
@@ -97,31 +114,16 @@ public class InfoLesson extends AppCompatActivity{
             imageView.setVisibility(View.INVISIBLE);
             videoView.start();
         }
-        if(word.getMoreInfo().equals("")) {
-            moreInfoButton.setEnabled(false);
-            moreInfoButton.setAlpha(0.5f);
-        } else {
-            moreInfoButton.setEnabled(true);
-            moreInfoButton.setAlpha(1f);
-        }
     }
 
     /**
-     * On pressing the more info button, it will display additional info about a sign if there
-     * is any.
-     * @param view the more info button
+     * On pressing the prev sign button, it will load and display info about the sign prior to the
+     * current sign if there is any.
+     * @param view the prevSign button
      */
-    protected void moreInfoButton(View view) {
-        //this magical value will change the button's text between back and more info
-        floater += 1;
-        if(floater % 2 == 1) {
-            infoView.setText(word.getMoreInfo());
-            moreInfoButton.setText(R.string.backButtonText);
-            videoView.start();
-        } else {
-            infoView.setText(word.getBasicInfo());
-            moreInfoButton.setText(R.string.moreInfoButtonText);
-        }
+    public void prevSign(View view) {
+        index--;
+        setupSign();
     }
 
     /**
@@ -132,12 +134,52 @@ public class InfoLesson extends AppCompatActivity{
     public void nextSign(View view) {
         index++;
         if(index < words.size()) {
-            moreInfoButton.setText(R.string.moreInfoBtn);
+            prevSignButton.setText(R.string.prevSignBtn);
             setupSign();
         } else {
             Intent intent = new Intent(this, Quiz.class);
             intent.putExtra("lessonName", word.getLesson());
             startActivity(intent);
+        }
+    }
+
+    private static class ExampleAsyncTask extends AsyncTask<InfoLesson, Void, Void> {
+        private WeakReference<InfoLesson> infoLessonWeakReference;
+
+        ExampleAsyncTask(InfoLesson infoLesson){
+            infoLessonWeakReference = new WeakReference<InfoLesson>(infoLesson);
+        }
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            InfoLesson infoLesson = infoLessonWeakReference.get();
+            if (infoLesson == null || infoLesson.isFinishing()) {
+                return;
+            }
+            infoLesson.progressBar.setVisibility(View.VISIBLE);
+        }
+
+        @Override
+        protected Void doInBackground(InfoLesson... infoLessons) {
+            InfoLesson infoLesson = infoLessonWeakReference.get();
+            DatabaseAccess dbAccess = DatabaseAccess.getInstance(infoLessons[0]);
+            infoLesson.words = dbAccess.selectWordsByLesson(infoLessons[0].getIntent().getStringExtra("lessonName"));
+            System.out.println("Database access successful on background thread!!!!!");
+            System.out.println("Number of words: " + infoLesson.words.size());
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+            InfoLesson infoLesson = infoLessonWeakReference.get();
+            if (infoLesson == null || infoLesson.isFinishing()) {
+                return;
+            }
+            infoLesson.setTitle(infoLesson.getIntent().getStringExtra("lessonName"));
+            infoLesson.setupSign();
+            infoLesson.progressBar.setVisibility(View.INVISIBLE);
         }
     }
 }

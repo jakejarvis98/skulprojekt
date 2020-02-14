@@ -2,15 +2,18 @@ package com.aslearn;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 
 import com.aslearn.db.DatabaseAccess;
 import com.aslearn.db.Module;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 /**
@@ -20,7 +23,7 @@ public class MainMenu extends AppCompatActivity {
 
 
     public static final String moduleName = "com.aslearn.moduleName";
-    public static final String signInfo = "com.aslearn.infoText";
+    //public static final String signInfo = "com.aslearn.infoText";
     private ArrayList<Module> modules;
     private DatabaseAccess dbAccess;
     Button[] moduleButtons;
@@ -30,11 +33,13 @@ public class MainMenu extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         //setContentView(R.layout.module_menu);
         setContentView(R.layout.lesson_menu);
-        dbAccess = DatabaseAccess.getInstance(this);
-        modules = dbAccess.selectAllModules();
-        if (modules != null) {
-            setupModules();
-        }
+//        dbAccess = DatabaseAccess.getInstance(this);
+//        modules = dbAccess.selectAllModules();
+//        if (modules != null) {
+//            setupModules();
+//        }
+        ExampleAsyncTask task = new ExampleAsyncTask(this);
+        task.execute(this);
     }
 
     //TODO add a button 'Practice Worse Signs' at the bottom- quizzes you on 5(?) worst signs in this section
@@ -104,5 +109,35 @@ public class MainMenu extends AppCompatActivity {
         String module = moduleSelected.getText().toString();
         intent.putExtra(MainMenu.moduleName, module);
         startActivity(intent);
+    }
+
+    private static class ExampleAsyncTask extends AsyncTask<MainMenu, Void, Void> {
+        private WeakReference<MainMenu> mainMenuWeakReference;
+
+        ExampleAsyncTask(MainMenu mainMenu) {
+            mainMenuWeakReference = new WeakReference<>(mainMenu);
+        }
+
+        @Override
+        protected Void doInBackground(MainMenu... mainMenus) {
+            MainMenu mainMenu = mainMenuWeakReference.get();
+            mainMenu.dbAccess = DatabaseAccess.getInstance(mainMenus[0]);
+            mainMenu.modules = mainMenu.dbAccess.selectAllModules();
+            System.out.println("Lessons Loaded from background thread!!!!!" + Thread.currentThread().getName());
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+            MainMenu mainMenu = mainMenuWeakReference.get();
+            if (mainMenu == null || mainMenu.isFinishing()) {
+                return;
+            }
+            if (mainMenu.modules != null) {
+                mainMenu.setupModules();
+                System.out.println(Thread.currentThread().getName());
+            }
+        }
     }
 }

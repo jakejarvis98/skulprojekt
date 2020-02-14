@@ -2,6 +2,7 @@ package com.aslearn;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -11,6 +12,7 @@ import android.widget.LinearLayout;
 import com.aslearn.db.DatabaseAccess;
 import com.aslearn.db.Lesson;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 
@@ -21,21 +23,24 @@ import java.util.ArrayList;
 public class LessonMenu extends AppCompatActivity{
     private DatabaseAccess dbAccess;
     private ArrayList<Lesson> lessons;
-    private Button[] lessonButtons;
+    private String moduleName;
+    Button[] lessonButtons;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        dbAccess = DatabaseAccess.getInstance(this);
+//        dbAccess = DatabaseAccess.getInstance(this);
         setContentView(R.layout.lesson_menu);
-        Intent intent = getIntent();
-        String moduleName = intent.getStringExtra(MainMenu.moduleName);
-        System.out.println(moduleName);
-        lessons = dbAccess.selectLessonsByModule(moduleName);
-        if (lessons != null) {
-            setupLessons();
-        }
-        setTitle(moduleName);
+//        Intent intent = getIntent();
+//        String moduleName = intent.getStringExtra(MainMenu.moduleName);
+//        System.out.println(moduleName);
+//        lessons = dbAccess.selectLessonsByModule(moduleName);
+//        if (lessons != null) {
+//            setupLessons();
+//        }
+//        setTitle(moduleName);
+        ExampleAsyncTask task = new ExampleAsyncTask(this);
+        task.execute(this);
     }
 
     //TODO add a button 'Practice Worse Signs' at the bottom- quizzes you on 5(?) worst signs in this section
@@ -78,6 +83,37 @@ public class LessonMenu extends AppCompatActivity{
             if (lessons.get(I).getUnlocked() == 0){
                 lessonButton.setEnabled(false);
             }
+        }
+    }
+
+    private static class ExampleAsyncTask extends AsyncTask<LessonMenu, Void, Void> {
+        private WeakReference<LessonMenu> lessonMenuWeakReference;
+
+        ExampleAsyncTask(LessonMenu lessonMenu) {
+            lessonMenuWeakReference = new WeakReference<>(lessonMenu);
+        }
+
+        @Override
+        protected Void doInBackground(LessonMenu... lessonMenus) {
+            LessonMenu lessonMenu = lessonMenuWeakReference.get();
+            lessonMenu.dbAccess = DatabaseAccess.getInstance(lessonMenus[0]);
+            lessonMenu.moduleName = lessonMenus[0].getIntent().getStringExtra(MainMenu.moduleName);
+            System.out.println(lessonMenu.moduleName);
+            lessonMenu.lessons = lessonMenu.dbAccess.selectLessonsByModule(lessonMenu.moduleName);
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+            LessonMenu lessonMenu = lessonMenuWeakReference.get();
+            if (lessonMenu == null || lessonMenu.isFinishing()){
+                return;
+            }
+            if (lessonMenu.lessons != null) {
+                lessonMenu.setupLessons();
+            }
+            lessonMenu.setTitle(lessonMenu.moduleName);
         }
     }
 }

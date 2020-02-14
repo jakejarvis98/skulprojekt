@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.media.MediaPlayer;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.net.Uri;
 import android.support.v7.app.AppCompatActivity;
@@ -20,6 +21,7 @@ import com.aslearn.db.DatabaseAccess;
 import com.aslearn.db.Question;
 import com.aslearn.db.Word;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -27,6 +29,7 @@ import java.util.Random;
 
 /**
  * Created by vancoul on 6/3/18.
+ * Modified by jakejarvis 1/25/2020
  *
  * This is the quiz activity. It quizzes the user on lesson material with 3 types of questions.
  * If the user gets a question wrong, they will get the question again at the end until they get
@@ -42,16 +45,19 @@ public class Quiz extends AppCompatActivity {
     private View correctView;
     private Button checkAnswerButton;
     private Button nextButton;
+    private String lesson;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Intent intent = getIntent();
-        String lesson = intent.getStringExtra("lessonName");
-        dbAccess = DatabaseAccess.getInstance(this);
-        questions = new LinkedList<Question>(dbAccess.selectQuestionsByLesson(lesson));
-        setTitle(lesson);
-        nextQuestion();
+//        Intent intent = getIntent();
+//        String lesson = intent.getStringExtra("lessonName");
+//        dbAccess = DatabaseAccess.getInstance(this);
+//        questions = new LinkedList<Question>(dbAccess.selectQuestionsByLesson(lesson));
+//        setTitle(lesson);
+//        nextQuestion();
+        OneAsyncTask task1 = new OneAsyncTask(this);
+        task1.execute(this);
     }
 
     /**
@@ -64,9 +70,11 @@ public class Quiz extends AppCompatActivity {
         selectedView = null;
         correctView = null;
         if (questions.isEmpty()){
-            System.out.println("No more questions");
-            dbAccess.updateFinishedLesson(currQuestion.getLesson());
-            setContentView(R.layout.finished_activity);
+//            System.out.println("No more questions");
+//            dbAccess.updateFinishedLesson(currQuestion.getLesson());
+//            setContentView(R.layout.finished_activity);
+            SecAsyncTask task2 = new SecAsyncTask(this);
+            task2.execute();
         } else{
             //Move on to next question
             currQuestion = questions.remove();
@@ -357,10 +365,66 @@ public class Quiz extends AppCompatActivity {
 
     public void backToLessons(View view){
         Intent intent = new Intent(this, MainMenu.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
     }
 
     public void nextQuestionClicked(View view){
         nextQuestion();
+    }
+
+    private static class OneAsyncTask extends AsyncTask<Quiz, Void, Void> {
+        private WeakReference<Quiz> quizWeakReference;
+
+        OneAsyncTask(Quiz quiz) {
+            quizWeakReference = new WeakReference<>(quiz);
+        }
+
+        @Override
+        protected Void doInBackground(Quiz... quizzes) {
+            Quiz quiz = quizWeakReference.get();
+            quiz.lesson = quizzes[0].getIntent().getStringExtra("lessonName");
+            quiz.dbAccess = DatabaseAccess.getInstance(quizzes[0]);
+            quiz.questions = new LinkedList<Question>(quiz.dbAccess.selectQuestionsByLesson(quiz.lesson));
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+            Quiz quiz = quizWeakReference.get();
+            if (quiz == null || quiz.isFinishing()) {
+                return;
+            }
+            quiz.setTitle(quiz.lesson);
+            quiz.nextQuestion();
+        }
+    }
+
+    private static class SecAsyncTask extends AsyncTask<Void, Void, Void> {
+        private WeakReference<Quiz> quizWeakReference2;
+
+        SecAsyncTask(Quiz quiz) {
+            quizWeakReference2 = new WeakReference<>(quiz);
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            Quiz quiz = quizWeakReference2.get();
+            System.out.println("No more questions");
+            quiz.dbAccess.updateFinishedLesson(quiz.currQuestion.getLesson());
+            System.out.println("Questions loaded from background thread!!!");
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+            Quiz quiz = quizWeakReference2.get();
+            if (quiz == null || quiz.isFinishing()){
+                return;
+            }
+            quiz.setContentView(R.layout.finished_activity);
+        }
     }
 }

@@ -67,4 +67,14 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    /**
+     * Loads the Free Style activity when the user clicks on "Free Style"
+     * @param view the current view the user is on
+     */
+    public void freeStyle(View view) {
+        Intent intent = new Intent();
+        intent.setAction("demo.tensorflow.org.customvision_sample.YOLO");
+        startActivity(intent);
+    }
+
 }
