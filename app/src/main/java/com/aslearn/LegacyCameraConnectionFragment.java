@@ -1,7 +1,7 @@
 package com.aslearn;
 
 /*
- * Copyright 2014 The Android Open Source Project
+ * Copyright 2019 The TensorFlow Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ package com.aslearn;
  * limitations under the License.
  */
 
+import android.annotation.SuppressLint;
 import android.app.Fragment;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
@@ -23,6 +24,7 @@ import android.hardware.Camera.CameraInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -30,31 +32,16 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 
-import java.io.IOException;
-
+import com.aslearn.customview.AutoFitTextureView;
+import com.aslearn.env.ImageUtils;
 import com.aslearn.env.Logger;
 
+import java.io.IOException;
+import java.util.List;
+
 public class LegacyCameraConnectionFragment extends Fragment {
-
-  private Camera camera;
   private static final Logger LOGGER = new Logger();
-  private Camera.PreviewCallback imageListener;
-
-  /**
-   * The layout identifier to inflate for this Fragment.
-   */
-  private int layout;
-
-  public LegacyCameraConnectionFragment(
-      final Camera.PreviewCallback imageListener,
-      final int layout) {
-    this.imageListener = imageListener;
-    this.layout = layout;
-  }
-
-  /**
-   * Conversion from screen rotation to JPEG orientation.
-   */
+  /** Conversion from screen rotation to JPEG orientation. */
   private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
 
   static {
@@ -64,9 +51,16 @@ public class LegacyCameraConnectionFragment extends Fragment {
     ORIENTATIONS.append(Surface.ROTATION_270, 180);
   }
 
+  private Camera camera;
+  private Camera.PreviewCallback imageListener;
+  private Size desiredSize;
+  /** The layout identifier to inflate for this Fragment. */
+  private int layout;
+  /** An {@link AutoFitTextureView} for camera preview. */
+  private AutoFitTextureView textureView;
   /**
-   * {@link TextureView.SurfaceTextureListener} handles several lifecycle events on a
-   * {@link TextureView}.
+   * {@link TextureView.SurfaceTextureListener} handles several lifecycle events on a {@link
+   * TextureView}.
    */
   private final TextureView.SurfaceTextureListener surfaceTextureListener =
       new TextureView.SurfaceTextureListener() {
@@ -79,8 +73,21 @@ public class LegacyCameraConnectionFragment extends Fragment {
 
           try {
             Camera.Parameters parameters = camera.getParameters();
-            parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-
+            List<String> focusModes = parameters.getSupportedFocusModes();
+            if (focusModes != null
+                && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+              parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+            }
+            List<Camera.Size> cameraSizes = parameters.getSupportedPreviewSizes();
+            Size[] sizes = new Size[cameraSizes.size()];
+            int i = 0;
+            for (Camera.Size size : cameraSizes) {
+              sizes[i++] = new Size(size.width, size.height);
+            }
+            Size previewSize =
+                CameraConnectionFragment.chooseOptimalSize(
+                    sizes, desiredSize.getWidth(), desiredSize.getHeight());
+            parameters.setPreviewSize(previewSize.getWidth(), previewSize.getHeight());
             camera.setDisplayOrientation(90);
             camera.setParameters(parameters);
             camera.setPreviewTexture(texture);
@@ -90,8 +97,7 @@ public class LegacyCameraConnectionFragment extends Fragment {
 
           camera.setPreviewCallbackWithBuffer(imageListener);
           Camera.Size s = camera.getParameters().getPreviewSize();
-          int bufferSize = s.height * s.width * 3 / 2;
-          camera.addCallbackBuffer(new byte[bufferSize]);
+          camera.addCallbackBuffer(new byte[ImageUtils.getYUVByteSize(s.height, s.width)]);
 
           textureView.setAspectRatio(s.height, s.width);
 
@@ -100,8 +106,7 @@ public class LegacyCameraConnectionFragment extends Fragment {
 
         @Override
         public void onSurfaceTextureSizeChanged(
-                final SurfaceTexture texture, final int width, final int height) {
-        }
+                final SurfaceTexture texture, final int width, final int height) {}
 
         @Override
         public boolean onSurfaceTextureDestroyed(final SurfaceTexture texture) {
@@ -109,19 +114,18 @@ public class LegacyCameraConnectionFragment extends Fragment {
         }
 
         @Override
-        public void onSurfaceTextureUpdated(final SurfaceTexture texture) {
-        }
+        public void onSurfaceTextureUpdated(final SurfaceTexture texture) {}
       };
-
-  /**
-   * An {@link AutoFitTextureView} for camera preview.
-   */
-  private AutoFitTextureView textureView;
-
-  /**
-   * An additional thread for running tasks that shouldn't block the UI.
-   */
+  /** An additional thread for running tasks that shouldn't block the UI. */
   private HandlerThread backgroundThread;
+
+  @SuppressLint("ValidFragment")
+  public LegacyCameraConnectionFragment(
+          final Camera.PreviewCallback imageListener, final int layout, final Size desiredSize) {
+    this.imageListener = imageListener;
+    this.layout = layout;
+    this.desiredSize = desiredSize;
+  }
 
   @Override
   public View onCreateView(
@@ -131,7 +135,7 @@ public class LegacyCameraConnectionFragment extends Fragment {
 
   @Override
   public void onViewCreated(final View view, final Bundle savedInstanceState) {
-    textureView = (AutoFitTextureView) view.findViewById(R.id.texture);
+    textureView = view.findViewById(R.id.texture);
   }
 
   @Override
@@ -162,17 +166,13 @@ public class LegacyCameraConnectionFragment extends Fragment {
     super.onPause();
   }
 
-  /**
-   * Starts a background thread and its {@link Handler}.
-   */
+  /** Starts a background thread and its {@link Handler}. */
   private void startBackgroundThread() {
     backgroundThread = new HandlerThread("CameraBackground");
     backgroundThread.start();
   }
 
-  /**
-   * Stops the background thread and its {@link Handler}.
-   */
+  /** Stops the background thread and its {@link Handler}. */
   private void stopBackgroundThread() {
     backgroundThread.quitSafely();
     try {
@@ -196,8 +196,7 @@ public class LegacyCameraConnectionFragment extends Fragment {
     CameraInfo ci = new CameraInfo();
     for (int i = 0; i < Camera.getNumberOfCameras(); i++) {
       Camera.getCameraInfo(i, ci);
-      if (ci.facing == CameraInfo.CAMERA_FACING_BACK)
-        return i;
+      if (ci.facing == CameraInfo.CAMERA_FACING_BACK) return i;
     }
     return -1; // No camera found
   }

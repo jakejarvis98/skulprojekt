@@ -29,4 +29,18 @@ Location: mid section"</string>
     <string name="moreInfoButtonText">More Info</string>
     <string name="prevSignBtn">Prev Sign</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+
+    <!-- when I added the tf classifier and I actually documented -->
+    <string name="model">Model:</string>
+    <string-array name="models">
+        <item>Quantized</item>
+        <item>Float</item>
+    </string-array>
+
+    <string name="device">Device:</string>
+    <string-array name="devices">
+        <item>CPU</item>
+        <item>GPU</item>
+        <item>NNAPI</item>
+    </string-array>
 </resources>

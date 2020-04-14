@@ -57,10 +57,10 @@
             android:label="ASL Dictionary"
             android:parentActivityName=".Dictionary"
             />
-<!--        <activity android:name=".ClassifierActivity"-->
-<!--            android:label="@string/freestyle"-->
-<!--            android:parentActivityName=".MainActivity"-->
-<!--            />-->
+        <activity android:name=".ClassifierActivity"
+            android:label="@string/freestyle"
+            android:parentActivityName=".MainActivity"
+            />
 
     </application>
 

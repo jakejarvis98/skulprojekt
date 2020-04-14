@@ -72,8 +72,7 @@ public class MainActivity extends AppCompatActivity {
      * @param view the current view the user is on
      */
     public void freeStyle(View view) {
-        Intent intent = new Intent();
-        intent.setAction("demo.tensorflow.org.customvision_sample.YOLO");
+        Intent intent = new Intent(this, ClassifierActivity.class);
         startActivity(intent);
     }
 

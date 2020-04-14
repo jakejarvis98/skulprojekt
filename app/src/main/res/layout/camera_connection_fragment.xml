@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?><!--
- Copyright 2016 The TensorFlow Authors. All Rights Reserved.
+ Copyright 2019 The TensorFlow Authors. All Rights Reserved.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,28 +17,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.aslearn.AutoFitTextureView
+    <org.tensorflow.lite.examples.classification.customview.AutoFitTextureView
         android:id="@+id/texture"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true" />
+        android:layout_alignParentTop="true" />
 
-    <com.aslearn.RecognitionScoreView
-        android:id="@+id/results"
-        android:layout_height="50dp"
-        android:layout_width="match_parent"
-        android:background="@drawable/round"
-        android:layout_marginBottom="30dp"
-        android:layout_alignParentBottom="true"
-        android:layout_marginLeft="65dp"
-        android:layout_marginRight="65dp"
-
-        android:layout_alignParentTop="false" />
-
-    <com.aslearn.OverlayView
-        android:id="@+id/debug_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_alignParentBottom="true" />
 
 </RelativeLayout>

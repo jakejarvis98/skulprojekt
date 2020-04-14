@@ -20,10 +20,10 @@ allprojects {
         google()
         jcenter()
 
-        // Import AAR(s) from a folder next to the sample app project
-        flatDir {
-            dirs 'aars'
-        }
+//        // Import AAR(s) from a folder next to the sample app project
+//        flatDir {
+//            dirs 'aars'
+//        }
     }
 }
 

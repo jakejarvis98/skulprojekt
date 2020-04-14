@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 The TensorFlow Authors. All Rights Reserved.
+ * Copyright 2019 The TensorFlow Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,132 +21,154 @@ import android.graphics.Bitmap.Config;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Typeface;
-
 import android.media.ImageReader.OnImageAvailableListener;
-import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Size;
 import android.util.TypedValue;
-import android.view.Display;
+import android.widget.Toast;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Vector;
-
-import com.aslearn.OverlayView.DrawCallback;
 import com.aslearn.env.BorderedText;
+import com.aslearn.env.ImageUtils;
 import com.aslearn.env.Logger;
+import com.aslearn.tflite.Classifier;
+import com.aslearn.tflite.Classifier.Device;
+import com.aslearn.tflite.Classifier.Model;
+
+import java.io.IOException;
+import java.util.List;
 
 public class ClassifierActivity extends CameraActivity implements OnImageAvailableListener {
-    private static final Logger LOGGER = new Logger();
+  private static final Logger LOGGER = new Logger();
+  private static final boolean MAINTAIN_ASPECT = true;
+  private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
+  private static final float TEXT_SIZE_DIP = 10;
+  private Bitmap rgbFrameBitmap = null;
+  private Bitmap croppedBitmap = null;
+  private Bitmap cropCopyBitmap = null;
+  private long lastProcessingTimeMs;
+  private Integer sensorOrientation;
+  private Classifier classifier;
+  private Matrix frameToCropTransform;
+  private Matrix cropToFrameTransform;
+  private BorderedText borderedText;
 
-    private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
-    private static final float TEXT_SIZE_DIP = 10;
+  @Override
+  protected int getLayoutId() {
+    return R.layout.camera_connection_fragment;
+  }
 
-    private Integer sensorOrientation;
-    private ICognitiveServicesClassifier classifier;
-    private BorderedText borderedText;
+  @Override
+  protected Size getDesiredPreviewFrameSize() {
+    return DESIRED_PREVIEW_SIZE;
+  }
 
-    @Override
-    protected void onCreate(final Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+  @Override
+  public void onPreviewSizeChosen(final Size size, final int rotation) {
+    final float textSizePx =
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
+    borderedText = new BorderedText(textSizePx);
+    borderedText.setTypeface(Typeface.MONOSPACE);
 
-        classifier = new MSCognitiveServicesCustomVisionClassifier(this);
+    recreateClassifier(getModel(), getDevice(), getNumThreads());
+    if (classifier == null) {
+      LOGGER.e("No classifier on preview!");
+      return;
     }
 
-    @Override
-    public synchronized void onStop() {
-        super.onStop();
+    previewWidth = size.getWidth();
+    previewHeight = size.getHeight();
 
-        if (classifier != null) {
-            classifier.close();
-        }
-    }
+    sensorOrientation = rotation - getScreenOrientation();
+    LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
 
-    @Override
-    protected int getLayoutId() {
-        return R.layout.camera_connection_fragment;
-    }
+    LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
+    rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
+    croppedBitmap =
+        Bitmap.createBitmap(
+            classifier.getImageSizeX(), classifier.getImageSizeY(), Config.ARGB_8888);
 
-    @Override
-    protected Size getDesiredPreviewFrameSize() {
-        return DESIRED_PREVIEW_SIZE;
-    }
+    frameToCropTransform =
+        ImageUtils.getTransformationMatrix(
+            previewWidth,
+            previewHeight,
+            classifier.getImageSizeX(),
+            classifier.getImageSizeY(),
+            sensorOrientation,
+            MAINTAIN_ASPECT);
 
-    @Override
-    public void onPreviewSizeChosen(final Size size, final int rotation) {
-        final float textSizePx = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
-        borderedText = new BorderedText(textSizePx);
-        borderedText.setTypeface(Typeface.MONOSPACE);
+    cropToFrameTransform = new Matrix();
+    frameToCropTransform.invert(cropToFrameTransform);
+  }
 
-        previewWidth = size.getWidth();
-        previewHeight = size.getHeight();
+  @Override
+  protected void processImage() {
+    rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
+    final Canvas canvas = new Canvas(croppedBitmap);
+    canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
 
-        final Display display = getWindowManager().getDefaultDisplay();
-        final int screenOrientation = display.getRotation();
+    runInBackground(
+        new Runnable() {
+          @Override
+          public void run() {
+            if (classifier != null) {
+              final long startTime = SystemClock.uptimeMillis();
+              final List<Classifier.Recognition> results = classifier.recognizeImage(croppedBitmap);
+              lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
+              LOGGER.v("Detect: %s", results);
+              cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
 
-        LOGGER.i("Sensor orientation: %d, Screen orientation: %d", rotation, screenOrientation);
-
-        sensorOrientation = rotation + screenOrientation;
-
-        LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
-        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
-
-        yuvBytes = new byte[3][];
-
-        addCallback(
-                new DrawCallback() {
-                    @Override
-                    public void drawCallback(final Canvas canvas) {
-                        renderDebug(canvas);
-                    }
-                });
-    }
-
-    protected void processImageRGBbytes(int[] rgbBytes) {
-        rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
-
-        runInBackground(
-                new Runnable() {
+              runOnUiThread(
+                  new Runnable() {
                     @Override
                     public void run() {
-                        final long startTime = SystemClock.uptimeMillis();
-                        Classifier.Recognition r = classifier.classifyImage(rgbFrameBitmap, sensorOrientation);
-                        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
-
-                        final List<Classifier.Recognition> results = new ArrayList<>();
-
-                        if (r.getConfidence() > 0.7) {
-                            results.add(r);
-                        }
-
-                        LOGGER.i("Detect: %s", results);
-                        if (resultsView == null) {
-                            resultsView = findViewById(R.id.results);
-                        }
-                        resultsView.setResults(results);
-                        requestRender();
-                        computing = false;
-                        if (postInferenceCallback != null) {
-                            postInferenceCallback.run();
-                        }
+                      showResultsInBottomSheet(results);
+                      showFrameInfo(previewWidth + "x" + previewHeight);
+                      showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
+                      showCameraResolution(canvas.getWidth() + "x" + canvas.getHeight());
+                      showRotationInfo(String.valueOf(sensorOrientation));
+                      showInference(lastProcessingTimeMs + "ms");
                     }
-                });
+                  });
+            }
+            readyForNextImage();
+          }
+        });
+  }
 
+  @Override
+  protected void onInferenceConfigurationChanged() {
+    if (croppedBitmap == null) {
+      // Defer creation until we're getting camera frames.
+      return;
     }
+    final Device device = getDevice();
+    final Model model = getModel();
+    final int numThreads = getNumThreads();
+    runInBackground(() -> recreateClassifier(model, device, numThreads));
+  }
 
-    @Override
-    public void onSetDebug(boolean debug) {
+  private void recreateClassifier(Model model, Device device, int numThreads) {
+    if (classifier != null) {
+      LOGGER.d("Closing classifier.");
+      classifier.close();
+      classifier = null;
     }
-
-    private void renderDebug(final Canvas canvas) {
-        if (!isDebug()) {
-            return;
-        }
-
-        final Vector<String> lines = new Vector<String>();
-        lines.add("Inference time: " + lastProcessingTimeMs + "ms");
-        borderedText.drawLines(canvas, 10, canvas.getHeight() - 10, lines);
+    if (device == Device.GPU && model == Model.QUANTIZED) {
+      LOGGER.d("Not creating classifier: GPU doesn't support quantized models.");
+      runOnUiThread(
+          () -> {
+            Toast.makeText(this, "GPU does not yet supported quantized models.", Toast.LENGTH_LONG)
+                .show();
+          });
+      return;
     }
+    try {
+      LOGGER.d(
+          "Creating classifier (model=%s, device=%s, numThreads=%d)", model, device, numThreads);
+      classifier = Classifier.create(this, model, device, numThreads);
+    } catch (IOException e) {
+      LOGGER.e(e, "Failed to create classifier.");
+    }
+  }
 }

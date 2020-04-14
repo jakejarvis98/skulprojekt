@@ -16,6 +16,13 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    aaptOptions {
+        noCompress "tflite"
+    }
+    compileOptions {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
 }
 
 dependencies {
@@ -29,6 +36,17 @@ dependencies {
     implementation 'android.arch.persistence.room:runtime:1.1.0'
     annotationProcessor 'android.arch.persistence.room:compiler:1.1.0'
     implementation 'com.readystatesoftware.sqliteasset:sqliteassethelper:+'
-    implementation 'org.tensorflow:tensorflow-lite:+'
-    implementation 'ai.customvision.android:inference-tensorflow-lite-libcpp:+@aar'
+
+    // I added this to deal with the last one of the last 3 commented lines
+    implementation 'com.android.support:design:27.1.1'
+
+//    implementation 'androidx.appcompat:appcompat:1.0.0'
+//    implementation 'androidx.coordinatorlayout:coordinatorlayout:1.0.0'
+//    implementation 'com.google.android.material:material:1.0.0'
+
+    // Build off of nightly TensorFlow Lite
+    implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:0.0.0-nightly'
+    // Use local TensorFlow library
+    // implementation 'org.tensorflow:tensorflow-lite-local:0.0.0'
 }
